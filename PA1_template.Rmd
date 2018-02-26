@@ -1,25 +1,152 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+Author: Claudio Nicosia
 output: 
-  html_document:
+  html_document: 
     keep_md: true
 ---
 
+## Load Libraries
+```{r echo=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lattice)
+```
 
 ## Loading and preprocessing the data
+```{r}
+#setwd("~/Reproducible Research") #Set working dir
 
+unzip("activity.zip")
+activity_data <- read.table(file= "activity.csv", header=TRUE,
+                            sep=",",quote="\"")
+activity_data$date <- as.Date(activity_data$date)
+
+summary(activity_data)
+head(activity_data)
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r}
+StepsDayTotal <- aggregate(steps ~ date, data = activity_data, sum, na.rm = TRUE)
+head(StepsDayTotal)
+summary(StepsDayTotal)
 
+hist(StepsDayTotal$steps,col="brown", binwidth = 1500,
+ xlab = "Steps per day",
+ main = "Histogram Daily Steps Activity")
+abline(v = median(StepsDayTotal$steps, na.rm=TRUE), col = "red", lwd = 0.5)
+abline(v =   mean(StepsDayTotal$steps, na.rm=TRUE), col = "blue", lwd = 0.5)
+
+legend(x = "topright", # location of legend within plot area
+ c("Mean", "Median"), col = c("blue", "red"), lwd = c(2, 2))
+
+```
+
+
+```{r}
+# Mean of Total Steps per day:
+mean(StepsDayTotal$steps, na.rm=TRUE)
+```
+```{r}
+# Median of Total Steps per day:
+median(StepsDayTotal$steps, na.rm=TRUE)
+```
 
 
 ## What is the average daily activity pattern?
+```{r}
+
+ts_Act <- tapply(activity_data$steps, activity_data$interval, mean, na.rm = TRUE)
+
+plot(ts_Act, type="l", 
+     xlab="5 Min Interval", 
+     ylab="Avg. Number of Steps", 
+     main="Daily Activity Steps Trend", col=1 )
+
+# Interval with Max Average steps
+max_I <- ts_Act[which.max(ts_Act)]
+print(max_I)
+
+```
 
 
 
 ## Imputing missing values
 
+####Calculate and report the total number of missing values in the dataset
+
+```{r}
+#Calculate and report the total number of missing values in the dataset
+#tot_missing <- sum(is.na(activity_data))
+#tot_missing
+
+actDataMiss <- is.na(activity_data$steps)
+sum(actDataMiss)
+
+#Devise a strategy for filling in all of the missing values in the dataset. The
+#strategy does not need to be sophisticated. For example, you could use
+#the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+Impute_mean <- function(num) 
+                     replace(num, is.na(num), mean(num, na.rm = TRUE))
+
+##Create a new dataset that is equal to the original dataset but with the
+##missing data filled in.
+
+newData <- ( activity_data %>% 
+                group_by(interval) %>% 
+                    mutate(steps = round(Impute_mean(steps))))
+
+head(newData,20)
+summary(newData)
+```
+
+```{r}
+
+StepsDayTotal <- aggregate(steps ~ date, data = newData, sum, na.rm = TRUE)
+head(StepsDayTotal)
+
+hist(StepsDayTotal$steps,col="brown",
+ xlab = "Steps per day",
+ main = "Histogram Daily Steps Activity")
+abline(v = median(StepsDayTotal$steps, na.rm=TRUE), col = "red", lwd = 0.5)
+abline(v =   mean(StepsDayTotal$steps, na.rm=TRUE), col = "blue", lwd = 0.5)
+
+legend(x = "topright", # location of legend within plot area
+ c("Mean", "Median"), col = c("blue", "red"), lwd = c(2, 2))
+
+
+# Mean of Total Steps per day:
+mean(StepsDayTotal$steps, na.rm=TRUE)
+# Median of Total Steps per day:
+median(StepsDayTotal$steps, na.rm=TRUE)
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+
+newData$isWday <-
+!(weekdays(as.Date(newData$date)) %in% c('Saturday','Sunday'))
+
+newData$wday <- c('')
+newData$wday[which(newData$isWday)] <- c('WEEKDAY')
+newData$wday[which(newData$isWday=='FALSE')] <- c('WEEKEND')
+table(newData$wday)
+head(newData)
+
+PSteps <- aggregate(newData$steps, list(as.numeric(newData$interval),newData$wday),FUN="mean")
+
+
+names(PSteps) <- c("interval","wday", "avgSteps")
+head(PSteps)
+
+
+xyplot(PSteps$avgSteps ~ PSteps$interval | PSteps$wday, 
+       layout = c(1, 2), type = "l", 
+       xlab = "Interval", ylab = "Avg. Number of steps")
+
+```
+
